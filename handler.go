@@ -28,6 +28,7 @@ type Handler struct {
 	graphiql         bool
 	playground       bool
 	rootObjectFn     RootObjectFn
+	doFn             DoFn
 	resultCallbackFn ResultCallbackFn
 	formatErrorFn    func(err error) gqlerrors.FormattedError
 }
@@ -139,7 +140,13 @@ func (h *Handler) ContextHandler(ctx context.Context, w http.ResponseWriter, r *
 	if h.rootObjectFn != nil {
 		params.RootObject = h.rootObjectFn(ctx, r)
 	}
-	result := graphql.Do(params)
+
+	var result *graphql.Result
+	if h.doFn != nil {
+		result = h.doFn(params)
+	} else {
+		result = graphql.Do(params)
+	}
 
 	if formatErrorFn := h.formatErrorFn; formatErrorFn != nil && len(result.Errors) > 0 {
 		formatted := make([]gqlerrors.FormattedError, len(result.Errors))
@@ -196,12 +203,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // RootObjectFn allows a user to generate a RootObject per request
 type RootObjectFn func(ctx context.Context, r *http.Request) map[string]interface{}
 
+type DoFn func(p graphql.Params) *graphql.Result
+
 type Config struct {
 	Schema           *graphql.Schema
 	Pretty           bool
 	GraphiQL         bool
 	Playground       bool
 	RootObjectFn     RootObjectFn
+	DoFn             DoFn
 	ResultCallbackFn ResultCallbackFn
 	FormatErrorFn    func(err error) gqlerrors.FormattedError
 }
@@ -230,6 +240,7 @@ func New(p *Config) *Handler {
 		graphiql:         p.GraphiQL,
 		playground:       p.Playground,
 		rootObjectFn:     p.RootObjectFn,
+		doFn:             p.DoFn,
 		resultCallbackFn: p.ResultCallbackFn,
 		formatErrorFn:    p.FormatErrorFn,
 	}
